@@ -15,7 +15,7 @@ import { useStudyData } from "@/hooks/useStudyData";
 type TabKey = "home" | "books" | "study" | "calendar" | "settings";
 
 const tabs = [
-  { key: "home" as const, label: "test", icon: Home },
+  { key: "home" as const, label: "ホーム", icon: Home },
   { key: "books" as const, label: "参考書", icon: BookOpen },
   { key: "study" as const, label: "記録", icon: Timer },
   { key: "calendar" as const, label: "カレンダー", icon: CalendarDays },
