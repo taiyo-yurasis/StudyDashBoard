@@ -40,6 +40,20 @@ export type StudyRecord = {
   updatedAt: string;
 };
 
+export type StudySession = {
+  id: string;
+  date: string;
+  subject: Subject;
+  bookId?: string;
+  bookTitle?: string;
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
+  memo?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AppSettings = {
   examDate: string;
 };
@@ -48,6 +62,7 @@ export type StudyState = {
   tasks: StudyTask[];
   books: StudyBook[];
   records: StudyRecord[];
+  studySessions: StudySession[];
   settings: AppSettings;
 };
 
@@ -59,6 +74,7 @@ export type StudyDataActions = {
   updateBook: (id: string, updates: Partial<Omit<StudyBook, "id" | "createdAt">>) => void;
   deleteBook: (id: string) => void;
   setStudyHours: (date: string, hours: number) => void;
+  addStudySession: (session: Omit<StudySession, "id" | "createdAt" | "updatedAt">) => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
   resetAllData: () => void;
 };

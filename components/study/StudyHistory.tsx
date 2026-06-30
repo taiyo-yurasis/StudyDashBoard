@@ -2,32 +2,69 @@
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import type { StudyData } from "@/types/study";
-import { formatJapaneseDate } from "@/utils/date";
-import { formatHours } from "@/utils/progress";
+import { formatJapaneseDate, todayKey } from "@/utils/date";
+import { formatDurationHms, formatHours } from "@/utils/progress";
 
 type StudyHistoryProps = {
   data: StudyData;
 };
 
+function formatClockTime(value: string): string {
+  return new Intl.DateTimeFormat("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 export function StudyHistory({ data }: StudyHistoryProps) {
-  const records = [...data.records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 14);
-  const total = records.reduce((sum, record) => sum + record.hours, 0);
+  const today = todayKey();
+  const sessions = [...data.studySessions]
+    .sort((a, b) => b.startTime.localeCompare(a.startTime))
+    .slice(0, 14);
+  const todaySessionSeconds = data.studySessions
+    .filter((session) => session.date === today)
+    .reduce((sum, session) => sum + session.durationSeconds, 0);
+  const todayRecord = data.records.find((record) => record.date === today);
+  const todayTotalSeconds =
+    todaySessionSeconds > 0 ? todaySessionSeconds : Math.round((todayRecord?.hours ?? 0) * 3600);
+  const legacyRecords = [...data.records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 14);
 
   return (
     <section className="rounded-md border border-line bg-panel p-5 shadow-subtle">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-muted">直近の記録</p>
-          <h2 className="mt-1 text-2xl font-semibold text-ink">勉強履歴</h2>
+          <h2 className="mt-1 text-2xl font-semibold text-ink">学習履歴</h2>
         </div>
-        <p className="text-sm text-muted">表示分 合計 {formatHours(total)}</p>
+        <p className="text-sm text-muted">今日の合計 {formatDurationHms(todayTotalSeconds)}</p>
       </div>
 
       <div className="mt-5 space-y-3">
-        {records.length === 0 ? (
-          <EmptyState title="勉強時間の記録はまだありません" description="今日の時間を入力するとここに履歴が表示されます。" />
-        ) : (
-          records.map((record) => (
+        {sessions.length > 0 ? (
+          sessions.map((session) => (
+            <article key={session.id} className="rounded-md border border-line bg-panelSoft p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-muted">{formatJapaneseDate(session.date)}</p>
+                  <h3 className="mt-1 truncate text-lg font-semibold text-ink">
+                    {session.subject}
+                    {session.bookTitle ? ` / ${session.bookTitle}` : ""}
+                  </h3>
+                </div>
+                <p className="font-mono text-2xl font-semibold tabular-nums text-accent">
+                  {formatDurationHms(session.durationSeconds)}
+                </p>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted">
+                <span>
+                  {formatClockTime(session.startTime)} - {formatClockTime(session.endTime)}
+                </span>
+                {session.memo && <span className="truncate">{session.memo}</span>}
+              </div>
+            </article>
+          ))
+        ) : legacyRecords.length > 0 ? (
+          legacyRecords.map((record) => (
             <div
               key={record.date}
               className="flex items-center justify-between gap-4 rounded-md border border-line bg-panelSoft p-4"
@@ -36,6 +73,11 @@ export function StudyHistory({ data }: StudyHistoryProps) {
               <p className="text-xl font-semibold text-accent">{formatHours(record.hours)}</p>
             </div>
           ))
+        ) : (
+          <EmptyState
+            title="学習記録はまだありません"
+            description="タイマーを開始して、終了するとここに履歴が表示されます。"
+          />
         )}
       </div>
     </section>

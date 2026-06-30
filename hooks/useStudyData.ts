@@ -2,12 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { APP_CONFIG } from "@/lib/config";
-import type { AppSettings, StudyBook, StudyData, StudyRecord, StudyState, StudyTask } from "@/types/study";
+import type {
+  AppSettings,
+  StudyBook,
+  StudyData,
+  StudyRecord,
+  StudySession,
+  StudyState,
+  StudyTask
+} from "@/types/study";
 
 const initialState: StudyState = {
   tasks: [],
   books: [],
   records: [],
+  studySessions: [],
   settings: {
     examDate: APP_CONFIG.defaultExamDate
   }
@@ -28,6 +37,7 @@ function normalizeState(value: unknown): StudyState {
     tasks: Array.isArray(source?.tasks) ? source.tasks : initialState.tasks,
     books: Array.isArray(source?.books) ? source.books : initialState.books,
     records: Array.isArray(source?.records) ? source.records : initialState.records,
+    studySessions: Array.isArray(source?.studySessions) ? source.studySessions : initialState.studySessions,
     settings: {
       ...initialState.settings,
       ...(source?.settings ?? {})
@@ -127,6 +137,34 @@ export function useStudyData(): StudyData {
             ...current,
             records: exists
               ? current.records.map((record) => (record.date === date ? nextRecord : record))
+              : [nextRecord, ...current.records]
+          };
+        });
+      },
+      addStudySession: (session) => {
+        const timestamp = now();
+        const nextSession: StudySession = {
+          ...session,
+          id: createId("session"),
+          durationSeconds: Math.max(0, Math.round(session.durationSeconds)),
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        const additionalHours = nextSession.durationSeconds / 3600;
+
+        setState((current) => {
+          const existingRecord = current.records.find((record) => record.date === nextSession.date);
+          const nextRecord: StudyRecord = {
+            date: nextSession.date,
+            hours: Number(((existingRecord?.hours ?? 0) + additionalHours).toFixed(3)),
+            updatedAt: timestamp
+          };
+
+          return {
+            ...current,
+            studySessions: [nextSession, ...current.studySessions],
+            records: existingRecord
+              ? current.records.map((record) => (record.date === nextSession.date ? nextRecord : record))
               : [nextRecord, ...current.records]
           };
         });

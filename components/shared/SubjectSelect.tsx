@@ -23,15 +23,17 @@ type SubjectSelectProps = {
   value: Subject;
   onChange: (subject: Subject) => void;
   label?: string;
+  disabled?: boolean;
 };
 
-export function SubjectSelect({ value, onChange, label = "教科" }: SubjectSelectProps) {
+export function SubjectSelect({ value, onChange, label = "教科", disabled = false }: SubjectSelectProps) {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-medium text-muted">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as Subject)}
+        disabled={disabled}
         className="h-12 w-full rounded-md border border-line bg-panelSoft px-3 text-base text-ink outline-none focus:border-accent"
       >
         {subjects.map((subject) => (
