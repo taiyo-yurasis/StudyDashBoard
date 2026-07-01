@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { APP_CONFIG } from "@/lib/config";
+import { todayKey } from "@/utils/date";
 import type {
   AppSettings,
   DailyGeneratedTask,
@@ -245,23 +246,67 @@ export function useStudyData(): StudyData {
         setState((current) => ({ ...current, dailyPlans: [nextPlan, ...current.dailyPlans] }));
       },
       updateDailyPlan: (id, updates) => {
-        setState((current) => ({
-          ...current,
-          dailyPlans: current.dailyPlans.map((plan) =>
+        setState((current) => {
+          const timestamp = now();
+          const dailyPlans = current.dailyPlans.map((plan) =>
             plan.id === id
               ? normalizePlanAmounts({
                   ...plan,
                   ...updates,
-                  updatedAt: now()
+                  updatedAt: timestamp
                 })
               : plan
-          )
-        }));
+          );
+          const updatedPlan = dailyPlans.find((plan) => plan.id === id);
+          const today = todayKey();
+          const todayTasks = current.dailyGeneratedTasks[today];
+
+          if (!updatedPlan || !todayTasks) {
+            return {
+              ...current,
+              dailyPlans
+            };
+          }
+
+          const existingTask = todayTasks.find((task) => task.planId === id);
+          const shouldShowTask = updatedPlan.enabled && updatedPlan.currentAmount < updatedPlan.totalAmount;
+          const nextTodayTasks = todayTasks.filter((task) => task.planId !== id);
+
+          if (shouldShowTask) {
+            const nextTask = buildDailyGeneratedTask(updatedPlan);
+            const canKeepCompleted =
+              Boolean(existingTask?.completed) &&
+              existingTask?.startAmount === nextTask.startAmount &&
+              existingTask?.endAmount === nextTask.endAmount &&
+              existingTask?.unitType === nextTask.unitType;
+
+            nextTodayTasks.push({
+              ...nextTask,
+              id: existingTask?.id ?? nextTask.id,
+              completed: canKeepCompleted
+            });
+          }
+
+          return {
+            ...current,
+            dailyPlans,
+            dailyGeneratedTasks: {
+              ...current.dailyGeneratedTasks,
+              [today]: nextTodayTasks
+            }
+          };
+        });
       },
       deleteDailyPlan: (id) => {
         setState((current) => ({
           ...current,
-          dailyPlans: current.dailyPlans.filter((plan) => plan.id !== id)
+          dailyPlans: current.dailyPlans.filter((plan) => plan.id !== id),
+          dailyGeneratedTasks: Object.fromEntries(
+            Object.entries(current.dailyGeneratedTasks).map(([date, tasks]) => [
+              date,
+              tasks.filter((task) => task.planId !== id)
+            ])
+          )
         }));
       },
       ensureDailyTasksForDate: (date) => {

@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
+import { AutoTaskList } from "@/components/tasks/AutoTaskList";
 import { TaskList } from "@/components/tasks/TaskList";
 import type { StudyData } from "@/types/study";
 import { formatHours } from "@/utils/progress";
@@ -23,6 +24,11 @@ export function CalendarView({ data }: CalendarViewProps) {
   const days = useMemo(() => getMonthDays(year, monthIndex), [year, monthIndex]);
   const selectedRecord = data.records.find((record) => record.date === selectedDate);
   const selectedTasks = data.tasks.filter((task) => task.date === selectedDate);
+  const selectedAutoTasks = data.dailyGeneratedTasks[selectedDate] ?? [];
+  const selectedManualCompletedCount = selectedTasks.filter((task) => task.completed).length;
+  const selectedAutoCompletedCount = selectedAutoTasks.filter((task) => task.completed).length;
+  const isSelectedToday = selectedDate === today;
+  const isSelectedPast = selectedDate < today;
 
   const moveMonth = (amount: number) => {
     const next = new Date(year, monthIndex + amount, 1);
@@ -67,7 +73,9 @@ export function CalendarView({ data }: CalendarViewProps) {
         <div className="grid grid-cols-7 gap-2">
           {days.map((dateKey, index) => {
             const record = dateKey ? data.records.find((item) => item.date === dateKey) : undefined;
-            const taskCount = dateKey ? data.tasks.filter((task) => task.date === dateKey).length : 0;
+            const manualTaskCount = dateKey ? data.tasks.filter((task) => task.date === dateKey).length : 0;
+            const autoTaskCount = dateKey ? data.dailyGeneratedTasks[dateKey]?.length ?? 0 : 0;
+            const taskCount = manualTaskCount + autoTaskCount;
             const isToday = dateKey === today;
             const isSelected = dateKey === selectedDate;
 
@@ -106,7 +114,7 @@ export function CalendarView({ data }: CalendarViewProps) {
         <section className="rounded-md border border-line bg-panel p-5 shadow-subtle">
           <p className="text-sm font-medium text-muted">選択中の日</p>
           <h2 className="mt-1 text-2xl font-semibold text-ink">{formatLongJapaneseDate(selectedDate)}</h2>
-          <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-md border border-line bg-panelSoft p-4">
               <p className="text-sm text-muted">勉強時間</p>
               <p className="mt-2 text-2xl font-semibold text-accent">
@@ -114,13 +122,42 @@ export function CalendarView({ data }: CalendarViewProps) {
               </p>
             </div>
             <div className="rounded-md border border-line bg-panelSoft p-4">
-              <p className="text-sm text-muted">タスク</p>
-              <p className="mt-2 text-2xl font-semibold text-ink">{selectedTasks.length}件</p>
+              <p className="text-sm text-muted">自動タスク</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">
+                {selectedAutoCompletedCount} / {selectedAutoTasks.length}
+              </p>
+            </div>
+            <div className="rounded-md border border-line bg-panelSoft p-4">
+              <p className="text-sm text-muted">手動タスク</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">
+                {selectedManualCompletedCount} / {selectedTasks.length}
+              </p>
             </div>
           </div>
+          {isSelectedPast && selectedAutoTasks.length === 0 && (
+            <p className="mt-4 text-sm text-muted">
+              過去日は保存済みの自動タスク履歴だけを表示します。履歴がない日は、現在の設定から後追い生成しません。
+            </p>
+          )}
         </section>
 
-        <TaskList data={data} date={selectedDate} title="この日のタスク" />
+        <AutoTaskList
+          data={data}
+          date={selectedDate}
+          title="この日の自動タスク"
+          shouldGenerate={isSelectedToday}
+          readOnly={!isSelectedToday}
+          completionMessage="この日の必修タスク完了"
+          emptyDescription={
+            isSelectedPast
+              ? "この日に保存された自動タスク履歴はありません。過去日は現在の設定から後追い生成しません。"
+              : isSelectedToday
+                ? "設定画面で毎日タスク設定を追加すると、当日の範囲が自動で表示されます。"
+              : "未来日の自動タスクは当日になってから生成されます。"
+          }
+        />
+
+        <TaskList data={data} date={selectedDate} title="この日の手動タスク" />
       </div>
     </div>
   );

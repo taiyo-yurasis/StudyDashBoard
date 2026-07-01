@@ -9,14 +9,27 @@ import { formatJapaneseDate } from "@/utils/date";
 type AutoTaskListProps = {
   data: StudyData;
   date: string;
+  title?: string;
+  shouldGenerate?: boolean;
+  readOnly?: boolean;
+  emptyDescription?: string;
+  completionMessage?: string;
 };
 
-export function AutoTaskList({ data, date }: AutoTaskListProps) {
+export function AutoTaskList({
+  data,
+  date,
+  title = "今日の自動タスク",
+  shouldGenerate = true,
+  readOnly = false,
+  emptyDescription = "設定画面で毎日タスク設定を追加すると、当日の範囲が自動で表示されます。",
+  completionMessage = "今日の必修タスク完了"
+}: AutoTaskListProps) {
   useEffect(() => {
-    if (data.isReady) {
+    if (data.isReady && shouldGenerate) {
       data.ensureDailyTasksForDate(date);
     }
-  }, [data, date]);
+  }, [data, date, shouldGenerate]);
 
   const tasks = useMemo(() => {
     return data.dailyGeneratedTasks[date] ?? [];
@@ -30,7 +43,7 @@ export function AutoTaskList({ data, date }: AutoTaskListProps) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-muted">{formatJapaneseDate(date)}</p>
-          <h2 className="mt-1 text-2xl font-semibold text-ink">今日の自動タスク</h2>
+          <h2 className="mt-1 text-2xl font-semibold text-ink">{title}</h2>
         </div>
         <p className="text-sm text-muted">
           {completedCount} / {tasks.length} 完了
@@ -40,13 +53,13 @@ export function AutoTaskList({ data, date }: AutoTaskListProps) {
       {allCompleted && (
         <div className="mt-5 flex items-center gap-3 rounded-md border border-good/40 bg-good/10 px-4 py-3 text-good">
           <Sparkles size={18} aria-hidden />
-          <p className="text-sm font-semibold">今日の必修タスク完了</p>
+          <p className="text-sm font-semibold">{completionMessage}</p>
         </div>
       )}
 
       <div className="mt-5 space-y-3">
         {tasks.length === 0 ? (
-          <EmptyState title="今日の自動タスクはありません" description="設定画面で毎日タスク設定を追加すると、当日の範囲が自動で表示されます。" />
+          <EmptyState title="自動タスクはありません" description={emptyDescription} />
         ) : (
           tasks.map((task) => (
             <div
@@ -55,12 +68,17 @@ export function AutoTaskList({ data, date }: AutoTaskListProps) {
             >
               <button
                 type="button"
-                onClick={() => data.toggleDailyGeneratedTask(date, task.id, !task.completed)}
+                onClick={() => {
+                  if (!readOnly) {
+                    data.toggleDailyGeneratedTask(date, task.id, !task.completed);
+                  }
+                }}
+                disabled={readOnly}
                 className={`grid h-7 w-7 place-items-center rounded-md border ${
                   task.completed ? "border-good bg-good text-surface" : "border-line text-transparent"
-                }`}
-                aria-label={task.completed ? "完了を外す" : "完了にする"}
-                title={task.completed ? "完了を外す" : "完了"}
+                } ${readOnly ? "cursor-default" : ""}`}
+                aria-label={readOnly ? (task.completed ? "履歴: 完了" : "履歴: 未完了") : task.completed ? "完了を外す" : "完了にする"}
+                title={readOnly ? "履歴表示" : task.completed ? "完了を外す" : "完了"}
               >
                 <Check size={17} aria-hidden />
               </button>
