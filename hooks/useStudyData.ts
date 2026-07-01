@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { APP_CONFIG } from "@/lib/config";
 import type {
   AppSettings,
+  DailyGeneratedTask,
+  DailyPlan,
   StudyBook,
   StudyData,
   StudyRecord,
@@ -17,6 +19,8 @@ const initialState: StudyState = {
   books: [],
   records: [],
   studySessions: [],
+  dailyPlans: [],
+  dailyGeneratedTasks: {},
   settings: {
     examDate: APP_CONFIG.defaultExamDate
   }
@@ -30,14 +34,74 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function clampAmount(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizePlanAmounts(plan: DailyPlan): DailyPlan {
+  const totalAmount = Math.max(1, Math.round(plan.totalAmount || 0));
+  const currentAmount = clampAmount(Math.round(plan.currentAmount || 0), 0, totalAmount);
+  const dailyAmount = Math.max(1, Math.round(plan.dailyAmount || 0));
+
+  return {
+    ...plan,
+    totalAmount,
+    currentAmount,
+    dailyAmount
+  };
+}
+
+function formatDailyTaskTitle(plan: DailyPlan, startAmount: number, endAmount: number): string {
+  switch (plan.unitType) {
+    case "page":
+      return `${plan.materialName} p.${startAmount}〜${endAmount}`;
+    case "problem":
+      return `${plan.materialName} 問題${startAmount}〜${endAmount}`;
+    case "word":
+      return `${plan.materialName} No.${startAmount}〜${endAmount}`;
+    case "example":
+      return `${plan.materialName} 例題${startAmount}〜${endAmount}`;
+    case "minute":
+      return `${plan.materialName} ${startAmount}〜${endAmount}分`;
+    default:
+      return `${plan.materialName} ${startAmount}〜${endAmount}`;
+  }
+}
+
+function buildDailyGeneratedTask(plan: DailyPlan): DailyGeneratedTask {
+  const startAmount = plan.currentAmount + 1;
+  const endAmount = Math.min(plan.currentAmount + plan.dailyAmount, plan.totalAmount);
+
+  return {
+    id: createId("auto-task"),
+    planId: plan.id,
+    title: formatDailyTaskTitle(plan, startAmount, endAmount),
+    subject: plan.subject,
+    startAmount,
+    endAmount,
+    unitType: plan.unitType,
+    completed: false
+  };
+}
+
 function normalizeState(value: unknown): StudyState {
   const source = value as Partial<StudyState> | null;
+  const dailyGeneratedTasks =
+    source?.dailyGeneratedTasks &&
+    typeof source.dailyGeneratedTasks === "object" &&
+    !Array.isArray(source.dailyGeneratedTasks)
+      ? source.dailyGeneratedTasks
+      : initialState.dailyGeneratedTasks;
 
   return {
     tasks: Array.isArray(source?.tasks) ? source.tasks : initialState.tasks,
     books: Array.isArray(source?.books) ? source.books : initialState.books,
     records: Array.isArray(source?.records) ? source.records : initialState.records,
     studySessions: Array.isArray(source?.studySessions) ? source.studySessions : initialState.studySessions,
+    dailyPlans: Array.isArray(source?.dailyPlans)
+      ? source.dailyPlans.map((plan) => normalizePlanAmounts(plan))
+      : initialState.dailyPlans,
+    dailyGeneratedTasks,
     settings: {
       ...initialState.settings,
       ...(source?.settings ?? {})
@@ -166,6 +230,89 @@ export function useStudyData(): StudyData {
             records: existingRecord
               ? current.records.map((record) => (record.date === nextSession.date ? nextRecord : record))
               : [nextRecord, ...current.records]
+          };
+        });
+      },
+      addDailyPlan: (plan) => {
+        const timestamp = now();
+        const nextPlan: DailyPlan = normalizePlanAmounts({
+          ...plan,
+          id: createId("daily-plan"),
+          createdAt: timestamp,
+          updatedAt: timestamp
+        });
+
+        setState((current) => ({ ...current, dailyPlans: [nextPlan, ...current.dailyPlans] }));
+      },
+      updateDailyPlan: (id, updates) => {
+        setState((current) => ({
+          ...current,
+          dailyPlans: current.dailyPlans.map((plan) =>
+            plan.id === id
+              ? normalizePlanAmounts({
+                  ...plan,
+                  ...updates,
+                  updatedAt: now()
+                })
+              : plan
+          )
+        }));
+      },
+      deleteDailyPlan: (id) => {
+        setState((current) => ({
+          ...current,
+          dailyPlans: current.dailyPlans.filter((plan) => plan.id !== id)
+        }));
+      },
+      ensureDailyTasksForDate: (date) => {
+        setState((current) => {
+          if (current.dailyGeneratedTasks[date]) {
+            return current;
+          }
+
+          const tasks = current.dailyPlans
+            .filter((plan) => plan.enabled && plan.currentAmount < plan.totalAmount)
+            .map((plan) => buildDailyGeneratedTask(plan));
+
+          return {
+            ...current,
+            dailyGeneratedTasks: {
+              ...current.dailyGeneratedTasks,
+              [date]: tasks
+            }
+          };
+        });
+      },
+      toggleDailyGeneratedTask: (date, taskId, completed) => {
+        setState((current) => {
+          const tasks = current.dailyGeneratedTasks[date] ?? [];
+          const targetTask = tasks.find((task) => task.id === taskId);
+
+          if (!targetTask) {
+            return current;
+          }
+
+          const nextTasks = tasks.map((task) => (task.id === taskId ? { ...task, completed } : task));
+          const nextPlans = current.dailyPlans.map((plan) => {
+            if (plan.id !== targetTask.planId) {
+              return plan;
+            }
+
+            const nextCurrent = completed ? targetTask.endAmount : targetTask.startAmount - 1;
+            return normalizePlanAmounts({
+              ...plan,
+              currentAmount: nextCurrent,
+              updatedAt: now()
+            });
+          });
+
+          return {
+            ...current,
+            dailyPlans: nextPlans,
+            dailyGeneratedTasks: {
+              ...current.dailyGeneratedTasks,
+              [date]: nextTasks
+            }
           };
         });
       },

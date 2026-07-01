@@ -54,6 +54,32 @@ export type StudySession = {
   updatedAt: string;
 };
 
+export type DailyUnitType = "page" | "problem" | "word" | "example" | "minute";
+
+export type DailyPlan = {
+  id: string;
+  subject: Subject;
+  materialName: string;
+  unitType: DailyUnitType;
+  totalAmount: number;
+  currentAmount: number;
+  dailyAmount: number;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DailyGeneratedTask = {
+  id: string;
+  planId: string;
+  title: string;
+  subject: Subject;
+  startAmount: number;
+  endAmount: number;
+  unitType: DailyUnitType;
+  completed: boolean;
+};
+
 export type AppSettings = {
   examDate: string;
 };
@@ -63,6 +89,8 @@ export type StudyState = {
   books: StudyBook[];
   records: StudyRecord[];
   studySessions: StudySession[];
+  dailyPlans: DailyPlan[];
+  dailyGeneratedTasks: Record<string, DailyGeneratedTask[]>;
   settings: AppSettings;
 };
 
@@ -75,6 +103,11 @@ export type StudyDataActions = {
   deleteBook: (id: string) => void;
   setStudyHours: (date: string, hours: number) => void;
   addStudySession: (session: Omit<StudySession, "id" | "createdAt" | "updatedAt">) => void;
+  addDailyPlan: (plan: Omit<DailyPlan, "id" | "createdAt" | "updatedAt">) => void;
+  updateDailyPlan: (id: string, updates: Partial<Omit<DailyPlan, "id" | "createdAt">>) => void;
+  deleteDailyPlan: (id: string) => void;
+  ensureDailyTasksForDate: (date: string) => void;
+  toggleDailyGeneratedTask: (date: string, taskId: string, completed: boolean) => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
   resetAllData: () => void;
 };
