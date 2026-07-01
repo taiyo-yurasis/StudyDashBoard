@@ -266,13 +266,16 @@ export function useStudyData(): StudyData {
       },
       ensureDailyTasksForDate: (date) => {
         setState((current) => {
-          if (current.dailyGeneratedTasks[date]) {
+          const existingTasks = current.dailyGeneratedTasks[date];
+          const eligiblePlans = current.dailyPlans.filter(
+            (plan) => plan.enabled && plan.currentAmount < plan.totalAmount
+          );
+
+          if (existingTasks && (existingTasks.length > 0 || eligiblePlans.length === 0)) {
             return current;
           }
 
-          const tasks = current.dailyPlans
-            .filter((plan) => plan.enabled && plan.currentAmount < plan.totalAmount)
-            .map((plan) => buildDailyGeneratedTask(plan));
+          const tasks = eligiblePlans.map((plan) => buildDailyGeneratedTask(plan));
 
           return {
             ...current,

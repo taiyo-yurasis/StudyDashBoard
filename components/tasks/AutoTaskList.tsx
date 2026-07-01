@@ -46,7 +46,7 @@ export function AutoTaskList({ data, date }: AutoTaskListProps) {
 
       <div className="mt-5 space-y-3">
         {tasks.length === 0 ? (
-          <EmptyState title="今日の自動タスクはありません" description="設定画面で毎日タスク設定を追加すると、明日以降の範囲が自動で表示されます。" />
+          <EmptyState title="今日の自動タスクはありません" description="設定画面で毎日タスク設定を追加すると、当日の範囲が自動で表示されます。" />
         ) : (
           tasks.map((task) => (
             <div
