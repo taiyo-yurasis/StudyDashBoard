@@ -50,6 +50,14 @@ select {
   color-scheme: dark;
 }
 
+input[type="date"] {
+  min-inline-size: 0;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  min-width: 0;
+}
+
 .app-safe-bottom {
   padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
 }

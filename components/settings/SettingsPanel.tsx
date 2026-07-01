@@ -47,7 +47,7 @@ export function SettingsPanel({ data }: SettingsPanelProps) {
               type="date"
               value={examDate}
               onChange={(event) => setExamDate(event.target.value)}
-              className="h-12 w-full rounded-md border border-line bg-panelSoft px-3 text-base text-ink outline-none focus:border-accent"
+              className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-md border border-line bg-panelSoft px-3 text-center text-base text-ink outline-none focus:border-accent"
             />
           </label>
 

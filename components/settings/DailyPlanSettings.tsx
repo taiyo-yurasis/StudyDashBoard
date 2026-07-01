@@ -156,7 +156,7 @@ function DailyPlanRow({ plan, data }: { plan: DailyPlan; data: StudyData }) {
 
   return (
     <div className="rounded-md border border-line bg-panelSoft p-4">
-      <div className="grid gap-3 xl:grid-cols-[10rem_minmax(0,1fr)_8rem_8rem_8rem_8rem_7rem_auto_auto]">
+      <div className="grid gap-3 lg:grid-cols-[7.5rem_minmax(9rem,1fr)_6.5rem_repeat(3,5.5rem)_5.5rem_3rem_3rem] lg:items-end">
         <SubjectSelect value={values.subject} onChange={(subject) => update("subject", subject)} />
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-muted">参考書名</span>
@@ -223,7 +223,7 @@ export function DailyPlanSettings({ data }: DailyPlanSettingsProps) {
         <p className="text-sm text-muted">{data.dailyPlans.filter((plan) => plan.enabled).length} 件有効</p>
       </div>
 
-      <div className="mt-5 grid gap-3 xl:grid-cols-[10rem_minmax(0,1fr)_8rem_8rem_8rem_8rem_7rem_auto]">
+      <div className="mt-5 grid gap-3 lg:grid-cols-[7.5rem_minmax(9rem,1fr)_6.5rem_repeat(3,5.5rem)_5.5rem_6rem] lg:items-end">
         <SubjectSelect value={values.subject} onChange={(subject) => update("subject", subject)} />
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-muted">参考書名</span>
