@@ -2,8 +2,7 @@
 
 import { Clock3 } from "lucide-react";
 import { CountdownCard } from "@/components/home/CountdownCard";
-import { AutoTaskList } from "@/components/tasks/AutoTaskList";
-import { TaskList } from "@/components/tasks/TaskList";
+import { TaskBoard } from "@/components/tasks/TaskBoard";
 import type { StudyData } from "@/types/study";
 import { formatHours } from "@/utils/progress";
 import { formatLongJapaneseDate, todayKey } from "@/utils/date";
@@ -37,8 +36,7 @@ export function HomeDashboard({ data }: HomeDashboardProps) {
       </div>
 
       <div className="space-y-5">
-        <AutoTaskList data={data} date={today} />
-        <TaskList data={data} date={today} title="今日の手動タスク" />
+        <TaskBoard data={data} date={today} title="今日のタスク" shouldGenerateAuto readOnlyAuto={false} />
       </div>
     </div>
   );

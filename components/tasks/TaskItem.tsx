@@ -70,7 +70,7 @@ export function TaskItem({ task, data }: TaskItemProps) {
   }
 
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-line bg-panelSoft p-4">
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-md border border-line bg-panelSoft p-4">
       <button
         type="button"
         onClick={() => data.updateTask(task.id, { completed: !task.completed })}
@@ -89,6 +89,8 @@ export function TaskItem({ task, data }: TaskItemProps) {
         </p>
         <p className="mt-1 text-sm text-muted">{task.subject}</p>
       </div>
+
+      <span className="rounded-md border border-line px-2 py-1 text-xs font-semibold text-muted">手動</span>
 
       <div className="flex gap-1">
         <button

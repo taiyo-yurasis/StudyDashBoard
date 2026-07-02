@@ -2,8 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
-import { AutoTaskList } from "@/components/tasks/AutoTaskList";
-import { TaskList } from "@/components/tasks/TaskList";
+import { TaskBoard } from "@/components/tasks/TaskBoard";
 import type { StudyData } from "@/types/study";
 import { formatHours } from "@/utils/progress";
 import { formatLongJapaneseDate, getMonthDays, monthLabel, parseDateKey, todayKey, toDateKey } from "@/utils/date";
@@ -141,23 +140,21 @@ export function CalendarView({ data }: CalendarViewProps) {
           )}
         </section>
 
-        <AutoTaskList
+        <TaskBoard
           data={data}
           date={selectedDate}
-          title="この日の自動タスク"
-          shouldGenerate={isSelectedToday}
-          readOnly={!isSelectedToday}
+          title="この日のタスク"
+          shouldGenerateAuto={isSelectedToday}
+          readOnlyAuto={!isSelectedToday}
           completionMessage="この日の必修タスク完了"
-          emptyDescription={
+          autoEmptyDescription={
             isSelectedPast
               ? "この日に保存された自動タスク履歴はありません。過去日は現在の設定から後追い生成しません。"
               : isSelectedToday
                 ? "設定画面で毎日タスク設定を追加すると、当日の範囲が自動で表示されます。"
               : "未来日の自動タスクは当日になってから生成されます。"
-          }
+            }
         />
-
-        <TaskList data={data} date={selectedDate} title="この日の手動タスク" />
       </div>
     </div>
   );
