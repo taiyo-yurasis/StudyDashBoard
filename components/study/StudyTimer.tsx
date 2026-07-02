@@ -4,41 +4,45 @@ import { Pause, Play, RotateCcw, Square } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubjectSelect } from "@/components/shared/SubjectSelect";
 import type { StudyData, Subject } from "@/types/study";
-import { toDateKey } from "@/utils/date";
 import { formatDurationHms } from "@/utils/progress";
 
 type StudyTimerProps = {
   data: StudyData;
 };
 
-type TimerStatus = "idle" | "running" | "paused";
-
 export function StudyTimer({ data }: StudyTimerProps) {
-  const [subject, setSubject] = useState<Subject>("英語");
-  const [bookId, setBookId] = useState("");
-  const [memo, setMemo] = useState("");
-  const [status, setStatus] = useState<TimerStatus>("idle");
-  const [startTime, setStartTime] = useState<string | null>(null);
-  const [activeStartedAt, setActiveStartedAt] = useState<number | null>(null);
-  const [accumulatedSeconds, setAccumulatedSeconds] = useState(0);
+  const [draftSubject, setDraftSubject] = useState<Subject>("英語");
+  const [draftBookId, setDraftBookId] = useState("");
+  const [draftMemo, setDraftMemo] = useState("");
   const [nowMs, setNowMs] = useState(Date.now());
   const [message, setMessage] = useState("");
+  const activeTimer = data.activeTimer;
+  const status = activeTimer?.status ?? "idle";
+  const subject = activeTimer?.subject ?? draftSubject;
+  const bookId = activeTimer?.bookId ?? draftBookId;
+  const memo = activeTimer?.memo ?? draftMemo;
 
   const filteredBooks = useMemo(
     () => data.books.filter((book) => book.subject === subject),
     [data.books, subject]
   );
-  const selectedBook = filteredBooks.find((book) => book.id === bookId);
+  const activeStartedAtMs = activeTimer?.activeStartedAt
+    ? new Date(activeTimer.activeStartedAt).getTime()
+    : null;
   const elapsedSeconds =
-    status === "running" && activeStartedAt
-      ? accumulatedSeconds + Math.floor((nowMs - activeStartedAt) / 1000)
-      : accumulatedSeconds;
+    activeTimer && status === "running" && activeStartedAtMs
+      ? activeTimer.accumulatedSeconds + Math.max(0, Math.floor((nowMs - activeStartedAtMs) / 1000))
+      : activeTimer?.accumulatedSeconds ?? 0;
 
   useEffect(() => {
     if (bookId && !filteredBooks.some((book) => book.id === bookId)) {
-      setBookId("");
+      if (activeTimer) {
+        data.updateTimerDraft({ bookId: undefined });
+      } else {
+        setDraftBookId("");
+      }
     }
-  }, [bookId, filteredBooks]);
+  }, [activeTimer, bookId, data, filteredBooks]);
 
   useEffect(() => {
     if (status !== "running") {
@@ -49,57 +53,64 @@ export function StudyTimer({ data }: StudyTimerProps) {
     return () => window.clearInterval(intervalId);
   }, [status]);
 
+  const handleSubjectChange = (nextSubject: Subject) => {
+    if (activeTimer) {
+      data.updateTimerDraft({ subject: nextSubject, bookId: undefined });
+      return;
+    }
+
+    setDraftSubject(nextSubject);
+    setDraftBookId("");
+  };
+
+  const handleBookChange = (nextBookId: string) => {
+    if (activeTimer) {
+      data.updateTimerDraft({ bookId: nextBookId || undefined });
+      return;
+    }
+
+    setDraftBookId(nextBookId);
+  };
+
+  const handleMemoChange = (nextMemo: string) => {
+    if (activeTimer) {
+      data.updateTimerDraft({ memo: nextMemo });
+      return;
+    }
+
+    setDraftMemo(nextMemo);
+  };
+
   const start = () => {
-    const now = new Date();
-    setStartTime(now.toISOString());
-    setActiveStartedAt(now.getTime());
-    setNowMs(now.getTime());
-    setAccumulatedSeconds(0);
+    const now = Date.now();
+    setNowMs(now);
     setMessage("");
-    setStatus("running");
+    data.startTimer({
+      subject,
+      bookId: bookId || undefined,
+      memo
+    });
   };
 
   const pause = () => {
-    setAccumulatedSeconds(elapsedSeconds);
-    setActiveStartedAt(null);
-    setStatus("paused");
+    data.pauseTimer();
   };
 
   const resume = () => {
     const now = Date.now();
-    setActiveStartedAt(now);
     setNowMs(now);
-    setStatus("running");
+    data.resumeTimer();
   };
 
   const finish = () => {
-    if (!startTime) {
+    if (!activeTimer) {
       return;
     }
 
-    const end = new Date();
-    const durationSeconds =
-      status === "running" && activeStartedAt
-        ? accumulatedSeconds + Math.floor((end.getTime() - activeStartedAt) / 1000)
-        : accumulatedSeconds;
-    const trimmedMemo = memo.trim();
-
-    data.addStudySession({
-      date: toDateKey(new Date(startTime)),
-      subject,
-      bookId: selectedBook?.id,
-      bookTitle: selectedBook?.title,
-      startTime,
-      endTime: end.toISOString(),
-      durationSeconds,
-      memo: trimmedMemo || undefined
-    });
-
-    setStatus("idle");
-    setStartTime(null);
-    setActiveStartedAt(null);
-    setAccumulatedSeconds(0);
-    setMemo("");
+    data.finishTimer();
+    setDraftSubject("英語");
+    setDraftBookId("");
+    setDraftMemo("");
     setMessage("学習記録を保存しました");
   };
 
@@ -118,13 +129,13 @@ export function StudyTimer({ data }: StudyTimerProps) {
       </div>
 
       <div className="mt-5 grid gap-4">
-        <SubjectSelect value={subject} onChange={setSubject} disabled={status !== "idle"} />
+        <SubjectSelect value={subject} onChange={handleSubjectChange} />
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-muted">教材</span>
           <select
             value={bookId}
-            onChange={(event) => setBookId(event.target.value)}
-            disabled={status !== "idle" || filteredBooks.length === 0}
+            onChange={(event) => handleBookChange(event.target.value)}
+            disabled={filteredBooks.length === 0}
             className="h-12 w-full rounded-md border border-line bg-panelSoft px-3 text-base text-ink outline-none focus:border-accent disabled:text-muted"
           >
             <option value="">教材なし</option>
@@ -139,7 +150,7 @@ export function StudyTimer({ data }: StudyTimerProps) {
           <span className="mb-2 block text-sm font-medium text-muted">メモ</span>
           <textarea
             value={memo}
-            onChange={(event) => setMemo(event.target.value)}
+            onChange={(event) => handleMemoChange(event.target.value)}
             placeholder="例: 長文読解を3題"
             rows={3}
             className="w-full resize-none rounded-md border border-line bg-panelSoft px-3 py-3 text-base text-ink outline-none placeholder:text-muted/65 focus:border-accent"

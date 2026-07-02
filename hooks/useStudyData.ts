@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { APP_CONFIG } from "@/lib/config";
-import { todayKey } from "@/utils/date";
+import { todayKey, toDateKey } from "@/utils/date";
 import type {
+  ActiveTimer,
   AppSettings,
   DailyGeneratedTask,
   DailyPlan,
@@ -20,6 +21,7 @@ const initialState: StudyState = {
   books: [],
   records: [],
   studySessions: [],
+  activeTimer: null,
   dailyPlans: [],
   dailyGeneratedTasks: {},
   settings: {
@@ -85,6 +87,87 @@ function buildDailyGeneratedTask(plan: DailyPlan): DailyGeneratedTask {
   };
 }
 
+function isValidIsoDate(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+function normalizeActiveTimer(value: unknown): ActiveTimer | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const timer = value as Partial<ActiveTimer>;
+  const activeStartedAt =
+    timer.activeStartedAt === null || isValidIsoDate(timer.activeStartedAt)
+      ? timer.activeStartedAt
+      : null;
+
+  if (
+    typeof timer.subject !== "string" ||
+    typeof timer.memo !== "string" ||
+    (timer.status !== "running" && timer.status !== "paused") ||
+    !isValidIsoDate(timer.startTime) ||
+    typeof timer.accumulatedSeconds !== "number" ||
+    !Number.isFinite(timer.accumulatedSeconds)
+  ) {
+    return null;
+  }
+
+  if (timer.status === "running" && !activeStartedAt) {
+    return null;
+  }
+
+  return {
+    subject: timer.subject,
+    bookId: typeof timer.bookId === "string" && timer.bookId ? timer.bookId : undefined,
+    memo: timer.memo,
+    status: timer.status,
+    startTime: timer.startTime,
+    activeStartedAt: timer.status === "running" ? activeStartedAt : null,
+    accumulatedSeconds: Math.max(0, Math.round(timer.accumulatedSeconds))
+  };
+}
+
+function calculateTimerSeconds(timer: ActiveTimer, endMs = Date.now()): number {
+  if (timer.status !== "running" || !timer.activeStartedAt) {
+    return timer.accumulatedSeconds;
+  }
+
+  return Math.max(
+    0,
+    timer.accumulatedSeconds + Math.floor((endMs - new Date(timer.activeStartedAt).getTime()) / 1000)
+  );
+}
+
+function addSessionToState(
+  current: StudyState,
+  session: Omit<StudySession, "id" | "createdAt" | "updatedAt">,
+  timestamp: string
+): StudyState {
+  const nextSession: StudySession = {
+    ...session,
+    id: createId("session"),
+    durationSeconds: Math.max(0, Math.round(session.durationSeconds)),
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+  const additionalHours = nextSession.durationSeconds / 3600;
+  const existingRecord = current.records.find((record) => record.date === nextSession.date);
+  const nextRecord: StudyRecord = {
+    date: nextSession.date,
+    hours: Number(((existingRecord?.hours ?? 0) + additionalHours).toFixed(3)),
+    updatedAt: timestamp
+  };
+
+  return {
+    ...current,
+    studySessions: [nextSession, ...current.studySessions],
+    records: existingRecord
+      ? current.records.map((record) => (record.date === nextSession.date ? nextRecord : record))
+      : [nextRecord, ...current.records]
+  };
+}
+
 function normalizeState(value: unknown): StudyState {
   const source = value as Partial<StudyState> | null;
   const dailyGeneratedTasks =
@@ -99,6 +182,7 @@ function normalizeState(value: unknown): StudyState {
     books: Array.isArray(source?.books) ? source.books : initialState.books,
     records: Array.isArray(source?.records) ? source.records : initialState.records,
     studySessions: Array.isArray(source?.studySessions) ? source.studySessions : initialState.studySessions,
+    activeTimer: normalizeActiveTimer(source?.activeTimer),
     dailyPlans: Array.isArray(source?.dailyPlans)
       ? source.dailyPlans.map((plan) => normalizePlanAmounts(plan))
       : initialState.dailyPlans,
@@ -132,7 +216,24 @@ export function useStudyData(): StudyData {
       return;
     }
 
-    window.localStorage.setItem(APP_CONFIG.storageKey, JSON.stringify(state));
+    const flush = () => {
+      window.localStorage.setItem(APP_CONFIG.storageKey, JSON.stringify(state));
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flush();
+      }
+    };
+    const timeoutId = window.setTimeout(flush, 500);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", flush);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", flush);
+    };
   }, [isReady, state]);
 
   return useMemo<StudyData>(() => {
@@ -208,29 +309,133 @@ export function useStudyData(): StudyData {
       },
       addStudySession: (session) => {
         const timestamp = now();
-        const nextSession: StudySession = {
-          ...session,
-          id: createId("session"),
-          durationSeconds: Math.max(0, Math.round(session.durationSeconds)),
-          createdAt: timestamp,
-          updatedAt: timestamp
-        };
-        const additionalHours = nextSession.durationSeconds / 3600;
-
+        setState((current) => addSessionToState(current, session, timestamp));
+      },
+      deleteStudySession: (id) => {
         setState((current) => {
-          const existingRecord = current.records.find((record) => record.date === nextSession.date);
-          const nextRecord: StudyRecord = {
-            date: nextSession.date,
-            hours: Number(((existingRecord?.hours ?? 0) + additionalHours).toFixed(3)),
-            updatedAt: timestamp
-          };
+          const target = current.studySessions.find((session) => session.id === id);
+          if (!target) {
+            return current;
+          }
+
+          const timestamp = now();
+          const nextSessions = current.studySessions.filter((session) => session.id !== id);
+          const remainingSecondsForDate = nextSessions
+            .filter((session) => session.date === target.date)
+            .reduce((sum, session) => sum + session.durationSeconds, 0);
+          const nextRecords =
+            remainingSecondsForDate > 0
+              ? current.records.map((record) =>
+                  record.date === target.date
+                    ? {
+                        ...record,
+                        hours: Number((remainingSecondsForDate / 3600).toFixed(3)),
+                        updatedAt: timestamp
+                      }
+                    : record
+                )
+              : current.records.filter((record) => record.date !== target.date);
 
           return {
             ...current,
-            studySessions: [nextSession, ...current.studySessions],
-            records: existingRecord
-              ? current.records.map((record) => (record.date === nextSession.date ? nextRecord : record))
-              : [nextRecord, ...current.records]
+            studySessions: nextSessions,
+            records: nextRecords
+          };
+        });
+      },
+      startTimer: (input) => {
+        const timestamp = now();
+        setState((current) => ({
+          ...current,
+          activeTimer: {
+            subject: input.subject,
+            bookId: input.bookId || undefined,
+            memo: input.memo,
+            status: "running",
+            startTime: timestamp,
+            activeStartedAt: timestamp,
+            accumulatedSeconds: 0
+          }
+        }));
+      },
+      pauseTimer: () => {
+        setState((current) => {
+          if (!current.activeTimer || current.activeTimer.status !== "running") {
+            return current;
+          }
+
+          return {
+            ...current,
+            activeTimer: {
+              ...current.activeTimer,
+              status: "paused",
+              activeStartedAt: null,
+              accumulatedSeconds: calculateTimerSeconds(current.activeTimer)
+            }
+          };
+        });
+      },
+      resumeTimer: () => {
+        setState((current) => {
+          if (!current.activeTimer || current.activeTimer.status !== "paused") {
+            return current;
+          }
+
+          return {
+            ...current,
+            activeTimer: {
+              ...current.activeTimer,
+              status: "running",
+              activeStartedAt: now()
+            }
+          };
+        });
+      },
+      updateTimerDraft: (updates) => {
+        setState((current) => {
+          if (!current.activeTimer) {
+            return current;
+          }
+
+          const hasBookIdUpdate = Object.prototype.hasOwnProperty.call(updates, "bookId");
+
+          return {
+            ...current,
+            activeTimer: {
+              ...current.activeTimer,
+              ...updates,
+              bookId: hasBookIdUpdate ? updates.bookId || undefined : current.activeTimer.bookId
+            }
+          };
+        });
+      },
+      finishTimer: () => {
+        setState((current) => {
+          if (!current.activeTimer) {
+            return current;
+          }
+
+          const timestamp = now();
+          const selectedBook = current.books.find((book) => book.id === current.activeTimer?.bookId);
+          const trimmedMemo = current.activeTimer.memo.trim();
+          const nextState = addSessionToState(
+            current,
+            {
+              date: toDateKey(new Date(current.activeTimer.startTime)),
+              subject: current.activeTimer.subject,
+              bookId: selectedBook?.id,
+              bookTitle: selectedBook?.title,
+              startTime: current.activeTimer.startTime,
+              endTime: timestamp,
+              durationSeconds: calculateTimerSeconds(current.activeTimer, new Date(timestamp).getTime()),
+              memo: trimmedMemo || undefined
+            },
+            timestamp
+          );
+
+          return {
+            ...nextState,
+            activeTimer: null
           };
         });
       },

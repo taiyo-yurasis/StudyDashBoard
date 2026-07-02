@@ -54,6 +54,18 @@ export type StudySession = {
   updatedAt: string;
 };
 
+export type ActiveTimerStatus = "running" | "paused";
+
+export type ActiveTimer = {
+  subject: Subject;
+  bookId?: string;
+  memo: string;
+  status: ActiveTimerStatus;
+  startTime: string;
+  activeStartedAt: string | null;
+  accumulatedSeconds: number;
+};
+
 export type DailyUnitType = "page" | "problem" | "word" | "example" | "minute";
 
 export type DailyPlan = {
@@ -89,6 +101,7 @@ export type StudyState = {
   books: StudyBook[];
   records: StudyRecord[];
   studySessions: StudySession[];
+  activeTimer: ActiveTimer | null;
   dailyPlans: DailyPlan[];
   dailyGeneratedTasks: Record<string, DailyGeneratedTask[]>;
   settings: AppSettings;
@@ -103,6 +116,12 @@ export type StudyDataActions = {
   deleteBook: (id: string) => void;
   setStudyHours: (date: string, hours: number) => void;
   addStudySession: (session: Omit<StudySession, "id" | "createdAt" | "updatedAt">) => void;
+  deleteStudySession: (id: string) => void;
+  startTimer: (input: { subject: Subject; bookId?: string; memo: string }) => void;
+  pauseTimer: () => void;
+  resumeTimer: () => void;
+  updateTimerDraft: (updates: Partial<Pick<ActiveTimer, "subject" | "bookId" | "memo">>) => void;
+  finishTimer: () => void;
   addDailyPlan: (plan: Omit<DailyPlan, "id" | "createdAt" | "updatedAt">) => void;
   updateDailyPlan: (id: string, updates: Partial<Omit<DailyPlan, "id" | "createdAt">>) => void;
   deleteDailyPlan: (id: string) => void;

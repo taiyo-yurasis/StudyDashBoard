@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { Trash2 } from "lucide-react";
 import type { StudyData } from "@/types/study";
 import { formatJapaneseDate, todayKey } from "@/utils/date";
 import { formatDurationHms, formatHours } from "@/utils/progress";
@@ -28,6 +29,11 @@ export function StudyHistory({ data }: StudyHistoryProps) {
   const todayTotalSeconds =
     todaySessionSeconds > 0 ? todaySessionSeconds : Math.round((todayRecord?.hours ?? 0) * 3600);
   const legacyRecords = [...data.records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 14);
+  const deleteSession = (id: string) => {
+    if (window.confirm("この学習記録を削除しますか？")) {
+      data.deleteStudySession(id);
+    }
+  };
 
   return (
     <section className="rounded-md border border-line bg-panel p-5 shadow-subtle">
@@ -51,9 +57,20 @@ export function StudyHistory({ data }: StudyHistoryProps) {
                     {session.bookTitle ? ` / ${session.bookTitle}` : ""}
                   </h3>
                 </div>
-                <p className="font-mono text-2xl font-semibold tabular-nums text-accent">
-                  {formatDurationHms(session.durationSeconds)}
-                </p>
+                <div className="flex shrink-0 items-center gap-2">
+                  <p className="font-mono text-2xl font-semibold tabular-nums text-accent">
+                    {formatDurationHms(session.durationSeconds)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => deleteSession(session.id)}
+                    aria-label="学習記録を削除"
+                    title="削除"
+                    className="flex size-10 items-center justify-center rounded-md border border-line bg-panel text-muted transition hover:border-red-400 hover:text-red-300"
+                  >
+                    <Trash2 size={17} aria-hidden />
+                  </button>
+                </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted">
                 <span>
