@@ -13,6 +13,7 @@ type StudyTimerProps = {
 export function StudyTimer({ data }: StudyTimerProps) {
   const [draftSubject, setDraftSubject] = useState<Subject>("英語");
   const [draftBookId, setDraftBookId] = useState("");
+  const [draftPlanMaterialTitle, setDraftPlanMaterialTitle] = useState("");
   const [draftMemo, setDraftMemo] = useState("");
   const [nowMs, setNowMs] = useState(Date.now());
   const [message, setMessage] = useState("");
@@ -20,12 +21,29 @@ export function StudyTimer({ data }: StudyTimerProps) {
   const status = activeTimer?.status ?? "idle";
   const subject = activeTimer?.subject ?? draftSubject;
   const bookId = activeTimer?.bookId ?? draftBookId;
+  const planMaterialTitle = activeTimer?.planMaterialTitle ?? draftPlanMaterialTitle;
   const memo = activeTimer?.memo ?? draftMemo;
 
   const filteredBooks = useMemo(
     () => data.books.filter((book) => book.subject === subject),
     [data.books, subject]
   );
+  const filteredDailyPlanTitles = useMemo(() => {
+    const bookTitles = new Set(filteredBooks.map((book) => book.title));
+    return Array.from(
+      new Set(
+        data.dailyPlans
+          .filter((plan) => plan.subject === subject && plan.enabled)
+          .map((plan) => plan.materialName.trim())
+          .filter(Boolean)
+      )
+    ).filter((title) => !bookTitles.has(title));
+  }, [data.dailyPlans, filteredBooks, subject]);
+  const materialSelectValue = bookId
+    ? `book:${bookId}`
+    : planMaterialTitle
+      ? `plan:${planMaterialTitle}`
+      : "";
   const activeStartedAtMs = activeTimer?.activeStartedAt
     ? new Date(activeTimer.activeStartedAt).getTime()
     : null;
@@ -35,14 +53,28 @@ export function StudyTimer({ data }: StudyTimerProps) {
       : activeTimer?.accumulatedSeconds ?? 0;
 
   useEffect(() => {
+    const updates: Parameters<typeof data.updateTimerDraft>[0] = {};
+
     if (bookId && !filteredBooks.some((book) => book.id === bookId)) {
       if (activeTimer) {
-        data.updateTimerDraft({ bookId: undefined });
+        updates.bookId = undefined;
       } else {
         setDraftBookId("");
       }
     }
-  }, [activeTimer, bookId, data, filteredBooks]);
+
+    if (planMaterialTitle && !filteredDailyPlanTitles.includes(planMaterialTitle)) {
+      if (activeTimer) {
+        updates.planMaterialTitle = undefined;
+      } else {
+        setDraftPlanMaterialTitle("");
+      }
+    }
+
+    if (activeTimer && Object.keys(updates).length > 0) {
+      data.updateTimerDraft(updates);
+    }
+  }, [activeTimer, bookId, data, filteredBooks, filteredDailyPlanTitles, planMaterialTitle]);
 
   useEffect(() => {
     if (status !== "running") {
@@ -55,21 +87,47 @@ export function StudyTimer({ data }: StudyTimerProps) {
 
   const handleSubjectChange = (nextSubject: Subject) => {
     if (activeTimer) {
-      data.updateTimerDraft({ subject: nextSubject, bookId: undefined });
+      data.updateTimerDraft({ subject: nextSubject, bookId: undefined, planMaterialTitle: undefined });
       return;
     }
 
     setDraftSubject(nextSubject);
     setDraftBookId("");
+    setDraftPlanMaterialTitle("");
   };
 
-  const handleBookChange = (nextBookId: string) => {
-    if (activeTimer) {
-      data.updateTimerDraft({ bookId: nextBookId || undefined });
+  const handleMaterialChange = (nextValue: string) => {
+    if (nextValue.startsWith("book:")) {
+      const nextBookId = nextValue.slice("book:".length);
+      if (activeTimer) {
+        data.updateTimerDraft({ bookId: nextBookId || undefined, planMaterialTitle: undefined });
+        return;
+      }
+
+      setDraftBookId(nextBookId);
+      setDraftPlanMaterialTitle("");
       return;
     }
 
-    setDraftBookId(nextBookId);
+    if (nextValue.startsWith("plan:")) {
+      const nextPlanMaterialTitle = nextValue.slice("plan:".length);
+      if (activeTimer) {
+        data.updateTimerDraft({ bookId: undefined, planMaterialTitle: nextPlanMaterialTitle || undefined });
+        return;
+      }
+
+      setDraftBookId("");
+      setDraftPlanMaterialTitle(nextPlanMaterialTitle);
+      return;
+    }
+
+    if (activeTimer) {
+      data.updateTimerDraft({ bookId: undefined, planMaterialTitle: undefined });
+      return;
+    }
+
+    setDraftBookId("");
+    setDraftPlanMaterialTitle("");
   };
 
   const handleMemoChange = (nextMemo: string) => {
@@ -88,6 +146,7 @@ export function StudyTimer({ data }: StudyTimerProps) {
     data.startTimer({
       subject,
       bookId: bookId || undefined,
+      planMaterialTitle: planMaterialTitle || undefined,
       memo
     });
   };
@@ -110,6 +169,7 @@ export function StudyTimer({ data }: StudyTimerProps) {
     data.finishTimer();
     setDraftSubject("英語");
     setDraftBookId("");
+    setDraftPlanMaterialTitle("");
     setDraftMemo("");
     setMessage("学習記録を保存しました");
   };
@@ -133,17 +193,30 @@ export function StudyTimer({ data }: StudyTimerProps) {
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-muted">教材</span>
           <select
-            value={bookId}
-            onChange={(event) => handleBookChange(event.target.value)}
-            disabled={filteredBooks.length === 0}
+            value={materialSelectValue}
+            onChange={(event) => handleMaterialChange(event.target.value)}
+            disabled={status !== "idle"}
             className="h-12 w-full rounded-md border border-line bg-panelSoft px-3 text-base text-ink outline-none focus:border-accent disabled:text-muted"
           >
             <option value="">教材なし</option>
-            {filteredBooks.map((book) => (
-              <option key={book.id} value={book.id}>
-                {book.title}
-              </option>
-            ))}
+            {filteredBooks.length > 0 && (
+              <optgroup label="参考書">
+                {filteredBooks.map((book) => (
+                  <option key={book.id} value={`book:${book.id}`}>
+                    {book.title}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {filteredDailyPlanTitles.length > 0 && (
+              <optgroup label="定期タスクの教材">
+                {filteredDailyPlanTitles.map((title) => (
+                  <option key={title} value={`plan:${title}`}>
+                    {title}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         <label className="block">

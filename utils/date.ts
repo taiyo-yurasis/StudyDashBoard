@@ -28,6 +28,13 @@ export function formatLongJapaneseDate(dateKey: string): string {
   }).format(date);
 }
 
+export function formatClockTime(value: string): string {
+  return new Intl.DateTimeFormat("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 export function parseDateKey(dateKey: string): Date {
   const [year, month, day] = dateKey.split("-").map(Number);
   return new Date(year, month - 1, day);

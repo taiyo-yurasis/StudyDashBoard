@@ -120,6 +120,10 @@ function normalizeActiveTimer(value: unknown): ActiveTimer | null {
   return {
     subject: timer.subject,
     bookId: typeof timer.bookId === "string" && timer.bookId ? timer.bookId : undefined,
+    planMaterialTitle:
+      typeof timer.planMaterialTitle === "string" && timer.planMaterialTitle
+        ? timer.planMaterialTitle
+        : undefined,
     memo: timer.memo,
     status: timer.status,
     startTime: timer.startTime,
@@ -350,6 +354,7 @@ export function useStudyData(): StudyData {
           activeTimer: {
             subject: input.subject,
             bookId: input.bookId || undefined,
+            planMaterialTitle: input.bookId ? undefined : input.planMaterialTitle || undefined,
             memo: input.memo,
             status: "running",
             startTime: timestamp,
@@ -398,13 +403,19 @@ export function useStudyData(): StudyData {
           }
 
           const hasBookIdUpdate = Object.prototype.hasOwnProperty.call(updates, "bookId");
+          const hasPlanMaterialTitleUpdate = Object.prototype.hasOwnProperty.call(updates, "planMaterialTitle");
+          const nextBookId = hasBookIdUpdate ? updates.bookId || undefined : current.activeTimer.bookId;
+          const nextPlanMaterialTitle = hasPlanMaterialTitleUpdate
+            ? updates.planMaterialTitle || undefined
+            : current.activeTimer.planMaterialTitle;
 
           return {
             ...current,
             activeTimer: {
               ...current.activeTimer,
               ...updates,
-              bookId: hasBookIdUpdate ? updates.bookId || undefined : current.activeTimer.bookId
+              bookId: nextBookId,
+              planMaterialTitle: nextBookId ? undefined : nextPlanMaterialTitle
             }
           };
         });
@@ -424,7 +435,7 @@ export function useStudyData(): StudyData {
               date: toDateKey(new Date(current.activeTimer.startTime)),
               subject: current.activeTimer.subject,
               bookId: selectedBook?.id,
-              bookTitle: selectedBook?.title,
+              bookTitle: selectedBook?.title ?? current.activeTimer.planMaterialTitle,
               startTime: current.activeTimer.startTime,
               endTime: timestamp,
               durationSeconds: calculateTimerSeconds(current.activeTimer, new Date(timestamp).getTime()),

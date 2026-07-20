@@ -3,8 +3,10 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { TaskBoard } from "@/components/tasks/TaskBoard";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { SessionListItem } from "@/components/study/SessionListItem";
 import type { StudyData } from "@/types/study";
-import { formatHours } from "@/utils/progress";
+import { formatDurationHms, formatHours } from "@/utils/progress";
 import { formatLongJapaneseDate, getMonthDays, monthLabel, parseDateKey, todayKey, toDateKey } from "@/utils/date";
 
 type CalendarViewProps = {
@@ -22,12 +24,18 @@ export function CalendarView({ data }: CalendarViewProps) {
 
   const days = useMemo(() => getMonthDays(year, monthIndex), [year, monthIndex]);
   const selectedRecord = data.records.find((record) => record.date === selectedDate);
+  const selectedSessions = [...data.studySessions]
+    .filter((session) => session.date === selectedDate)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const selectedTasks = data.tasks.filter((task) => task.date === selectedDate);
   const selectedAutoTasks = data.dailyGeneratedTasks[selectedDate] ?? [];
   const selectedManualCompletedCount = selectedTasks.filter((task) => task.completed).length;
   const selectedAutoCompletedCount = selectedAutoTasks.filter((task) => task.completed).length;
   const isSelectedToday = selectedDate === today;
   const isSelectedPast = selectedDate < today;
+  const selectedSessionSeconds = selectedSessions.reduce((sum, session) => sum + session.durationSeconds, 0);
+  const selectedStudyTime =
+    selectedSessionSeconds > 0 ? formatDurationHms(selectedSessionSeconds) : formatHours(selectedRecord?.hours ?? 0);
 
   const moveMonth = (amount: number) => {
     const next = new Date(year, monthIndex + amount, 1);
@@ -117,7 +125,7 @@ export function CalendarView({ data }: CalendarViewProps) {
             <div className="rounded-md border border-line bg-panelSoft p-4">
               <p className="text-sm text-muted">勉強時間</p>
               <p className="mt-2 text-2xl font-semibold text-accent">
-                {formatHours(selectedRecord?.hours ?? 0)}
+                {selectedStudyTime}
               </p>
             </div>
             <div className="rounded-md border border-line bg-panelSoft p-4">
@@ -138,6 +146,27 @@ export function CalendarView({ data }: CalendarViewProps) {
               過去日は保存済みの自動タスク履歴だけを表示します。履歴がない日は、現在の設定から後追い生成しません。
             </p>
           )}
+        </section>
+
+        <section className="rounded-md border border-line bg-panel p-5 shadow-subtle">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-muted">{formatLongJapaneseDate(selectedDate)}</p>
+              <h2 className="mt-1 text-2xl font-semibold text-ink">この日の学習記録</h2>
+            </div>
+            <p className="text-sm text-muted">合計 {selectedStudyTime}</p>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {selectedSessions.length > 0 ? (
+              selectedSessions.map((session) => <SessionListItem key={session.id} session={session} />)
+            ) : (
+              <EmptyState
+                title="学習セッションはありません"
+                description="この日に記録された学習セッションはありません。"
+              />
+            )}
+          </div>
         </section>
 
         <TaskBoard

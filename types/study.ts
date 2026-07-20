@@ -59,6 +59,7 @@ export type ActiveTimerStatus = "running" | "paused";
 export type ActiveTimer = {
   subject: Subject;
   bookId?: string;
+  planMaterialTitle?: string;
   memo: string;
   status: ActiveTimerStatus;
   startTime: string;
@@ -117,10 +118,10 @@ export type StudyDataActions = {
   setStudyHours: (date: string, hours: number) => void;
   addStudySession: (session: Omit<StudySession, "id" | "createdAt" | "updatedAt">) => void;
   deleteStudySession: (id: string) => void;
-  startTimer: (input: { subject: Subject; bookId?: string; memo: string }) => void;
+  startTimer: (input: { subject: Subject; bookId?: string; planMaterialTitle?: string; memo: string }) => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
-  updateTimerDraft: (updates: Partial<Pick<ActiveTimer, "subject" | "bookId" | "memo">>) => void;
+  updateTimerDraft: (updates: Partial<Pick<ActiveTimer, "subject" | "bookId" | "planMaterialTitle" | "memo">>) => void;
   finishTimer: () => void;
   addDailyPlan: (plan: Omit<DailyPlan, "id" | "createdAt" | "updatedAt">) => void;
   updateDailyPlan: (id: string, updates: Partial<Omit<DailyPlan, "id" | "createdAt">>) => void;
